@@ -1,0 +1,5 @@
+*.log
+*.tlog
+*.ipch
+.vs/
+x64/
