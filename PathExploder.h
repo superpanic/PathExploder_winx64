@@ -8,6 +8,7 @@ class PathExploder {
 
 	typedef struct {
 		AINotifierHandle selectionNotifierHandle;
+		AIToolHandle toolHandle;
 	} Globals;
 
 	Globals *g = nullptr;

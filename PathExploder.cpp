@@ -12,6 +12,8 @@ extern "C" {
 
 	AITransformArtSuite *sAITransformArt = NULL;
 	AIRealMathSuite *sAIRealMath = NULL;
+
+	AIToolSuite *sAITool = NULL;
 }
 
 const int easyInOutLUTLen = 32;
@@ -20,13 +22,33 @@ const double easyInOutLUT[32] = { 0.005, 0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 
 PathExploder::PathExploder(SPPluginRef pluginRef, SPBasicSuite *sSPBasic, SPInterfaceMessage *message) {
 	ASErr e = kNoErr;
 	this->plugin = pluginRef;
+	
 	// globals
 	e = sSPBasic->AllocateBlock(sizeof(Globals), (void **)&(this->g));
 	if (!e) message->d.globals = this->g;
 
+
+	sSPBasic->AcquireSuite(kAIToolSuite, kAIToolVersion, (const void**)&sAITool);
+
+	// create the tool handle!
+	AIAddToolData toolData;
+
+	char toolTitle[kMaxStringLength];
+	sprintf(toolTitle, "Path Exploder");
+	toolData.title = ai::UnicodeString(toolTitle);
+
+	char toolTip[kMaxStringLength];
+	sprintf(toolTip, "View and delete overlapping paths");
+	toolData.tooltip = ai::UnicodeString(toolTip);
+
+	sAITool->AddTool( plugin, toolTitle, toolData, NULL, &(g->toolHandle));
+	sSPBasic->ReleaseSuite(kAIToolSuite, kAIToolVersion);
+
+
 	sSPBasic->AcquireSuite(kAINotifierSuite, kAINotifierVersion, (const void**)&sAINotifier);
 	sAINotifier->AddNotifier(this->plugin, "Selection notifier", kAIArtSelectionChangedNotifier, &(g->selectionNotifierHandle));
 	sSPBasic->ReleaseSuite(kAINotifierSuite, kAINotifierVersion);
+
 
 	this->Alert(sSPBasic, "PathExploder start up!");
 
