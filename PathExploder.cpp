@@ -29,6 +29,8 @@ PathExploder::PathExploder(SPPluginRef pluginRef, SPBasicSuite *sSPBasic, SPInte
 
 
 	sSPBasic->AcquireSuite(kAIToolSuite, kAIToolVersion, (const void**)&sAITool);
+	sSPBasic->AcquireSuite(kAIUnicodeStringSuite, kAIUnicodeStringSuiteVersion, (const void**)&sAIUnicodeString);
+
 
 	// create the tool handle!
 	AIAddToolData toolData;
@@ -42,6 +44,8 @@ PathExploder::PathExploder(SPPluginRef pluginRef, SPBasicSuite *sSPBasic, SPInte
 	toolData.tooltip = ai::UnicodeString(toolTip);
 
 	sAITool->AddTool( plugin, toolTitle, toolData, NULL, &(g->toolHandle));
+
+	sSPBasic->ReleaseSuite(kAIUnicodeStringSuite, kAIUnicodeStringSuiteVersion);
 	sSPBasic->ReleaseSuite(kAIToolSuite, kAIToolVersion);
 
 
