@@ -2,6 +2,10 @@
 #include "IllustratorSDK.h"
 #include "AITransformArt.h"
 
+#define kIconID	    23230
+#define kToolTitle  "Path Exploder"
+#define kToolTip    "Path Explode Tool"
+
 class PathExploder {
 	
 	SPPlugin *plugin;
@@ -15,6 +19,8 @@ class PathExploder {
 
 	public:
 		PathExploder(SPPluginRef pluginRef, SPBasicSuite *sSPBasic, SPInterfaceMessage *message);
+		void AddSelectionNotifier(SPBasicSuite * sSPBasic);
+		ASErr CreateTool(SPBasicSuite * sSPBasic);
 		~PathExploder() {};
 		void FreeGlobals(SPInterfaceMessage *message);
 		ASErr Message(char *caller, char *selector, void *message);

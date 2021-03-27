@@ -20,50 +20,93 @@ const int easyInOutLUTLen = 32;
 const double easyInOutLUT[32] = { 0.005, 0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.03, 0.035, 0.04, 0.04, 0.045, 0.045, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.045, 0.045, 0.045, 0.04, 0.035, 0.035, 0.03, 0.025, 0.02, 0.015, 0.01, 0.005, 0.005 };
 
 PathExploder::PathExploder(SPPluginRef pluginRef, SPBasicSuite *sSPBasic, SPInterfaceMessage *message) {
+	
 	ASErr e = kNoErr;
 	this->plugin = pluginRef;
 	
-	// globals
 	e = sSPBasic->AllocateBlock(sizeof(Globals), (void **)&(this->g));
 	if (!e) message->d.globals = this->g;
 
+	CreateTool(sSPBasic);
+	AddSelectionNotifier(sSPBasic);
+	
+	this->Alert(sSPBasic, "PathExploder start up!");
+}
 
+ASErr PathExploder::CreateTool(SPBasicSuite *sSPBasic) {
+	ASErr e = kNoErr;
+	
 	sSPBasic->AcquireSuite(kAIToolSuite, kAIToolVersion, (const void**)&sAITool);
 	sSPBasic->AcquireSuite(kAIUnicodeStringSuite, kAIUnicodeStringSuiteVersion, (const void**)&sAIUnicodeString);
 
-
-	// create the tool handle!
 	AIAddToolData toolData;
 
 	char toolTitle[kMaxStringLength];
-	sprintf(toolTitle, "Path Exploder");
+	sprintf(toolTitle, kToolTitle);
 	toolData.title = ai::UnicodeString(toolTitle);
 
 	char toolTip[kMaxStringLength];
-	sprintf(toolTip, "View and delete overlapping paths");
+	sprintf(toolTip, kToolTip);
 	toolData.tooltip = ai::UnicodeString(toolTip);
 
-	sAITool->AddTool( plugin, toolTitle, toolData, NULL, &(g->toolHandle));
+	toolData.normalIconResID = kIconID;
+	toolData.darkIconResID = kIconID;
+	toolData.iconType = ai::IconType::kSVG;
+
+	ai::int32 toolOptions = kToolWantsAlternateSelectionTool | kToolWantsToTrackCursorOption;
+
+	e = sAITool->AddTool(plugin, toolTitle, toolData, toolOptions, &(g->toolHandle));
 
 	sSPBasic->ReleaseSuite(kAIUnicodeStringSuite, kAIUnicodeStringSuiteVersion);
 	sSPBasic->ReleaseSuite(kAIToolSuite, kAIToolVersion);
 
+	return e;
+}
 
+void PathExploder::AddSelectionNotifier(SPBasicSuite * sSPBasic) {
+	/* add selection notifier */
 	sSPBasic->AcquireSuite(kAINotifierSuite, kAINotifierVersion, (const void**)&sAINotifier);
 	sAINotifier->AddNotifier(this->plugin, "Selection notifier", kAIArtSelectionChangedNotifier, &(g->selectionNotifierHandle));
 	sSPBasic->ReleaseSuite(kAINotifierSuite, kAINotifierVersion);
-
-
-	this->Alert(sSPBasic, "PathExploder start up!");
-
-};
-
+}
 
 ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 	ASErr e = kNoErr;
 
 	SPMessageData *msgData = (SPMessageData *)message;
 	SPBasicSuite *sSPBasic = msgData->basic;
+
+	if (sSPBasic->IsEqual(caller, kCallerAITool)) {
+		if (sSPBasic->IsEqual(selector, kSelectorAIToolMouseDown)) {
+
+
+			sSPBasic->AcquireSuite(kAIMatchingArtSuite, kAIMatchingArtVersion, (const void**)&sAIMatchingArt);
+			sSPBasic->AcquireSuite(kAIArtSuite, kAIArtVersion, (const void**)&sAIArt);
+			sSPBasic->AcquireSuite(kAIMdMemorySuite, kAIMdMemoryVersion, (const void**)&sAIMemory);
+
+
+			int numberOfArtObjects = 0;
+			AIArtHandle **artObjects;
+			sAIMatchingArt->GetSelectedArt(&artObjects, &numberOfArtObjects);
+
+
+			
+			
+			char str[kMaxStringLength];
+			sprintf(str, "selected objects: %d", numberOfArtObjects);
+			this->Alert(sSPBasic, str);
+
+
+
+
+			sAIMemory->MdMemoryDisposeHandle((AIMdMemoryHandle)artObjects);
+
+			sSPBasic->ReleaseSuite(kAIMdMemorySuite, kAIMdMemoryVersion);
+			sSPBasic->ReleaseSuite(kAIArtSuite, kAIArtVersion);
+			sSPBasic->ReleaseSuite(kAIMatchingArtSuite, kAIMatchingArtVersion);
+
+		}
+	}
 
 	if (sSPBasic->IsEqual(caller, kCallerAINotify)) {
 		if (sSPBasic->IsEqual(selector, kSelectorAINotify)) {
