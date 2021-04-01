@@ -14,23 +14,41 @@ extern "C" {
 	AIRealMathSuite *sAIRealMath = NULL;
 
 	AIToolSuite *sAITool = NULL;
+	AIHitTestSuite *sAIHitTest = NULL;
+	AIAnnotatorSuite *sAIAnnotator = NULL;
+	AIAnnotatorDrawerSuite *sAIAnnotatorDrawer = NULL;
 }
 
 const int easyInOutLUTLen = 32;
 const double easyInOutLUT[32] = { 0.005, 0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.03, 0.035, 0.04, 0.04, 0.045, 0.045, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.045, 0.045, 0.045, 0.04, 0.035, 0.035, 0.03, 0.025, 0.02, 0.015, 0.01, 0.005, 0.005 };
 
+
 PathExploder::PathExploder(SPPluginRef pluginRef, SPBasicSuite *sSPBasic, SPInterfaceMessage *message) {
 	
 	ASErr e = kNoErr;
 	this->plugin = pluginRef;
-	
 	e = sSPBasic->AllocateBlock(sizeof(Globals), (void **)&(this->g));
 	if (!e) message->d.globals = this->g;
 
 	CreateTool(sSPBasic);
 	AddSelectionNotifier(sSPBasic);
+	AddAnnotator(sSPBasic);
 	
 	this->Alert(sSPBasic, "PathExploder start up!");
+}
+
+
+void PathExploder::AddAnnotator(SPBasicSuite * sSPBasic) {
+	sSPBasic->AcquireSuite(kAIAnnotatorSuite, kAIAnnotatorVersion, (const void **)&sAIAnnotator);
+	sAIAnnotator->AddAnnotator(this->plugin, "PointView Annotator", &(g->annotatorHandle));
+	sSPBasic->ReleaseSuite(kAIAnnotatorSuite, kAIAnnotatorVersion);
+}
+
+void PathExploder::AddSelectionNotifier(SPBasicSuite * sSPBasic) {
+	/* add selection notifier */
+	sSPBasic->AcquireSuite(kAINotifierSuite, kAINotifierVersion, (const void**)&sAINotifier);
+	sAINotifier->AddNotifier(this->plugin, "Selection notifier", kAIArtSelectionChangedNotifier, &(g->selectionNotifierHandle));
+	sSPBasic->ReleaseSuite(kAINotifierSuite, kAINotifierVersion);
 }
 
 ASErr PathExploder::CreateTool(SPBasicSuite *sSPBasic) {
@@ -63,13 +81,6 @@ ASErr PathExploder::CreateTool(SPBasicSuite *sSPBasic) {
 	return e;
 }
 
-void PathExploder::AddSelectionNotifier(SPBasicSuite * sSPBasic) {
-	/* add selection notifier */
-	sSPBasic->AcquireSuite(kAINotifierSuite, kAINotifierVersion, (const void**)&sAINotifier);
-	sAINotifier->AddNotifier(this->plugin, "Selection notifier", kAIArtSelectionChangedNotifier, &(g->selectionNotifierHandle));
-	sSPBasic->ReleaseSuite(kAINotifierSuite, kAINotifierVersion);
-}
-
 ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 	ASErr e = kNoErr;
 
@@ -77,39 +88,49 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 	SPBasicSuite *sSPBasic = msgData->basic;
 
 	if (sSPBasic->IsEqual(caller, kCallerAITool)) {
-		if (sSPBasic->IsEqual(selector, kSelectorAIToolMouseDown)) {
+		
+		// select tool
+		if (sSPBasic->IsEqual(selector, kSelectorAISelectTool)) {
+			// move selected objects apart
 
+		}
+
+		// deselect tool
+		else if (sSPBasic->IsEqual(selector, kSelectorAIDeselectTool)) {
+			// move selected objects back to original position
+		}
+
+		// tool mouse down
+		else if (sSPBasic->IsEqual(selector, kSelectorAIToolMouseDown)) {
 
 			sSPBasic->AcquireSuite(kAIMatchingArtSuite, kAIMatchingArtVersion, (const void**)&sAIMatchingArt);
 			sSPBasic->AcquireSuite(kAIArtSuite, kAIArtVersion, (const void**)&sAIArt);
-			sSPBasic->AcquireSuite(kAIMdMemorySuite, kAIMdMemoryVersion, (const void**)&sAIMemory);
 
 
 			int numberOfArtObjects = 0;
-			AIArtHandle **artObjects;
-			sAIMatchingArt->GetSelectedArt(&artObjects, &numberOfArtObjects);
-
-
+			
+			this->FreeSelectedArt(sSPBasic);
+			sAIMatchingArt->GetSelectedArt(&(g->selectedArt), &numberOfArtObjects);
 			
 			
 			char str[kMaxStringLength];
 			sprintf(str, "selected objects: %d", numberOfArtObjects);
-			this->Alert(sSPBasic, str);
+			//this->Alert(sSPBasic, str);
+			if (numberOfArtObjects > 1) {
+				AIArtHandle art = (*g->selectedArt)[1];
+				this->Move(sSPBasic, art, 25, 25);
+			}
 
-
-
-
-			sAIMemory->MdMemoryDisposeHandle((AIMdMemoryHandle)artObjects);
-
-			sSPBasic->ReleaseSuite(kAIMdMemorySuite, kAIMdMemoryVersion);
 			sSPBasic->ReleaseSuite(kAIArtSuite, kAIArtVersion);
 			sSPBasic->ReleaseSuite(kAIMatchingArtSuite, kAIMatchingArtVersion);
 
 		}
-	}
 
-	if (sSPBasic->IsEqual(caller, kCallerAINotify)) {
+	} else if (sSPBasic->IsEqual(caller, kCallerAINotify)) {
+		
 		if (sSPBasic->IsEqual(selector, kSelectorAINotify)) {
+			// selection changed!
+
 			sSPBasic->AcquireSuite(kAIMatchingArtSuite, kAIMatchingArtVersion, (const void**)&sAIMatchingArt);
 			sSPBasic->AcquireSuite(kAIArtSuite, kAIArtVersion, (const void**)&sAIArt);
 			sSPBasic->AcquireSuite(kAIMdMemorySuite, kAIMdMemoryVersion, (const void**)&sAIMemory);
@@ -128,13 +149,9 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 
 				short type;
 				sAIArt->GetArtType(art, &type);
-//				if (type == kPathArt) artCount++;
 
 				if (type == kPathArt && artCount == 0) {
 					artCount++;
-
-					//TODO: read and save original position into selected art objects dictionary	
-					// here are some fake hard coded coordinates for testing purposes
 
 					AIRealRect artBounds;
 					e = sAIArt->GetArtBounds(art, &artBounds);
@@ -164,8 +181,7 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 
 					sSPBasic->ReleaseSuite(kAIDictionarySuite, kAIDictionaryVersion);
 
-
-					//this->move(sSPBasic, art, 10.0, 10.0); // x right >   y up ^
+					//this->Move(sSPBasic, art, 10.0, 10.0); // x right >   y up ^
 
 				}
 
@@ -189,7 +205,16 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 	return e;
 }
 
-void PathExploder::FreeGlobals(SPInterfaceMessage *message) {
+void PathExploder::FreeSelectedArt(SPBasicSuite * sSPBasic) {
+	if (g->selectedArt) {
+		sSPBasic->AcquireSuite(kAIMdMemorySuite, kAIMdMemoryVersion, (const void**)&sAIMemory);
+		sAIMemory->MdMemoryDisposeHandle((AIMdMemoryHandle)g->selectedArt);
+		sSPBasic->ReleaseSuite(kAIMdMemorySuite, kAIMdMemoryVersion);
+		g->selectedArt = nullptr;
+	}
+}
+
+void PathExploder::FreeGlobals(SPInterfaceMessage *message) {	
 	if (this->g != nullptr) {
 		message->d.basic->FreeBlock(this->g);
 		this->g = nullptr;
@@ -213,7 +238,7 @@ ASErr PathExploder::Alert(SPBasicSuite *sSPBasic, const char *s) {
 	return e;
 }
 
-ASErr PathExploder::move(SPBasicSuite *sSPBasic, AIArtHandle art, AIReal tx, AIReal ty) {
+ASErr PathExploder::Move(SPBasicSuite *sSPBasic, AIArtHandle art, AIReal tx, AIReal ty) {
 	ASErr e = kNoErr;
 	
 	sSPBasic->AcquireSuite(kAIRealMathSuite, kAIRealMathVersion, (const void **)&sAIRealMath);
@@ -233,44 +258,4 @@ ASErr PathExploder::move(SPBasicSuite *sSPBasic, AIArtHandle art, AIReal tx, AIR
 	sSPBasic->ReleaseSuite(kAITransformArtSuite, kAITransformArtVersion);
 
 	return e;
-}
-
-ASErr PathExploder::transformPathArtWithParameters(AIArtHandle art, AIReal tx, AIReal ty, AIReal theta, AIReal sx, AIReal sy) {
-	ASErr result = kNoErr;
-
-	if (!sAIRealMath) return -1;
-	if (!sAITransformArt) return -1;
-
-	AIRealRect artBounds;
-	AIRealPoint artCenter;
-	AIRealMatrix artMatrix;
-	AIReal lineScale;
-	ai::int32 transformFlags = kTransformObjects | kScaleLines;
-	short type;
-
-	lineScale = (sAIRealMath->AIRealSqrt(sx)) * (sAIRealMath->AIRealSqrt(sy));
-
-	sAIArt->GetArtType(art, &type);
-
-	if(type == kPathArt) {
-		//result = sAIDocument->GetDocumentMaxArtboardBounds( &artboardBounds );
-		result = sAIArt->GetArtBounds(art, &artBounds);
-		artCenter.h = artBounds.left + (artBounds.right - artBounds.left) / 2;
-		artCenter.v = artBounds.bottom + (artBounds.top - artBounds.bottom) / 2;
-
-		// move object so that the centerpoint is at the origin
-		sAIRealMath->AIRealMatrixSetTranslate(&artMatrix, -artCenter.h, -artCenter.v);
-		// translate object by tx and ty
-		sAIRealMath->AIRealMatrixConcatTranslate(&artMatrix, tx, ty);
-		// rotate object by theta
-		sAIRealMath->AIRealMatrixConcatRotate(&artMatrix, theta);
-		// scale object by sx and sy
-		sAIRealMath->AIRealMatrixConcatScale(&artMatrix, sx, sy);
-		// move the object back to original position
-		sAIRealMath->AIRealMatrixConcatTranslate(&artMatrix, artCenter.h, artCenter.v);
-
-		result = sAITransformArt->TransformArt(art, &artMatrix, lineScale, transformFlags);
-	}
-
-	return result;
 }

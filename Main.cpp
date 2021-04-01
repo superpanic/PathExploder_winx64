@@ -30,6 +30,7 @@ extern "C" ASAPI ASErr PluginMain(char* caller, char* selector, void* message) {
 		if (sSPBasic->IsEqual(selector, kSPInterfaceStartupSelector)) {
 			pathExploder = new PathExploder(msgData->self, sSPBasic, (SPInterfaceMessage*)message );
 		} else if (sSPBasic->IsEqual(selector, kSPInterfaceShutdownSelector)) {
+			pathExploder->FreeSelectedArt(sSPBasic);
 			pathExploder->FreeGlobals( (SPInterfaceMessage*)message );
 			delete pathExploder;
 		}
