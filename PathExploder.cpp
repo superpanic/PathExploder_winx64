@@ -9,14 +9,12 @@ extern "C" {
 	AINotifierSuite *sAINotifier = NULL;
 	AIMdMemorySuite *sAIMemory = NULL;
 	AIDictionarySuite *sAIDictionary = NULL;
-
 	AITransformArtSuite *sAITransformArt = NULL;
 	AIRealMathSuite *sAIRealMath = NULL;
-
 	AIToolSuite *sAITool = NULL;
-	AIHitTestSuite *sAIHitTest = NULL;
 	AIAnnotatorSuite *sAIAnnotator = NULL;
-	AIAnnotatorDrawerSuite *sAIAnnotatorDrawer = NULL;
+	//	AIAnnotatorDrawerSuite *sAIAnnotatorDrawer = NULL;
+	//	AIHitTestSuite *sAIHitTest = NULL;
 }
 
 const int easyDeltaLUTLen = 32;
@@ -44,32 +42,47 @@ PathExploder::PathExploder(SPPluginRef pluginRef, SPBasicSuite *sSPBasic, SPInte
 }
 
 void PathExploder::AcquireSuites(SPBasicSuite *sSPBasic) {
-
+	sSPBasic->AcquireSuite(kAIUnicodeStringSuite, kAIUnicodeStringSuiteVersion, (const void**)&sAIUnicodeString);
+	sSPBasic->AcquireSuite(kSPBlocksSuite, kSPBlocksSuiteVersion, (const void**)&sSPBlocks);
+	sSPBasic->AcquireSuite(kAIUserSuite, kAIUserSuiteVersion, (const void**)&sAIUser);
+	sSPBasic->AcquireSuite(kAIMatchingArtSuite, kAIMatchingArtVersion, (const void**)&sAIMatchingArt);
+	sSPBasic->AcquireSuite(kAIArtSuite, kAIArtVersion, (const void**)&sAIArt);
+	sSPBasic->AcquireSuite(kAINotifierSuite, kAINotifierVersion, (const void**)&sAINotifier);
+	sSPBasic->AcquireSuite(kAIMdMemorySuite, kAIMdMemoryVersion, (const void**)&sAIMemory);
+	sSPBasic->AcquireSuite(kAIDictionarySuite, kAIDictionaryVersion, (const void**)&sAIDictionary);
+	sSPBasic->AcquireSuite(kAITransformArtSuite, kAITransformArtVersion, (const void **)&sAITransformArt);
+	sSPBasic->AcquireSuite(kAIRealMathSuite, kAIRealMathVersion, (const void **)&sAIRealMath);
+	sSPBasic->AcquireSuite(kAIToolSuite, kAIToolVersion, (const void**)&sAITool);
+	sSPBasic->AcquireSuite(kAIAnnotatorSuite, kAIAnnotatorVersion, (const void **)&sAIAnnotator);
 }
 
 void PathExploder::ReleaseSuites(SPBasicSuite *sSPBasic) {
-
+	sSPBasic->ReleaseSuite(kAIUnicodeStringSuite, kAIUnicodeStringSuiteVersion);
+	sSPBasic->ReleaseSuite(kSPBlocksSuite, kSPBlocksSuiteVersion);
+	sSPBasic->ReleaseSuite(kAIUserSuite, kAIUserSuiteVersion);
+	sSPBasic->ReleaseSuite(kAIMatchingArtSuite, kAIMatchingArtVersion);
+	sSPBasic->ReleaseSuite(kAIArtSuite, kAIArtVersion);
+	sSPBasic->ReleaseSuite(kAINotifierSuite, kAINotifierVersion);
+	sSPBasic->ReleaseSuite(kAIMdMemorySuite, kAIMdMemoryVersion);
+	sSPBasic->ReleaseSuite(kAIDictionarySuite, kAIDictionaryVersion);
+	sSPBasic->ReleaseSuite(kAITransformArtSuite, kAITransformArtVersion);
+	sSPBasic->ReleaseSuite(kAIRealMathSuite, kAIRealMathVersion);
+	sSPBasic->ReleaseSuite(kAIToolSuite, kAIToolVersion);
+	sSPBasic->ReleaseSuite(kAIAnnotatorSuite, kAIAnnotatorVersion);
 }
 
 void PathExploder::AddAnnotator(SPBasicSuite *sSPBasic) {
-	sSPBasic->AcquireSuite(kAIAnnotatorSuite, kAIAnnotatorVersion, (const void **)&sAIAnnotator);
 	sAIAnnotator->AddAnnotator(this->plugin, "PointView Annotator", &(g->annotatorHandle));
-	sSPBasic->ReleaseSuite(kAIAnnotatorSuite, kAIAnnotatorVersion);
 }
 
 void PathExploder::AddSelectionNotifier(SPBasicSuite * sSPBasic) {
 	/* add selection notifier */
-	sSPBasic->AcquireSuite(kAINotifierSuite, kAINotifierVersion, (const void**)&sAINotifier);
 	sAINotifier->AddNotifier(this->plugin, "Selection notifier", kAIArtSelectionChangedNotifier, &(g->selectionNotifierHandle));
-	sSPBasic->ReleaseSuite(kAINotifierSuite, kAINotifierVersion);
 }
 
 ASErr PathExploder::CreateTool(SPBasicSuite *sSPBasic) {
 	ASErr e = kNoErr;
 	
-	sSPBasic->AcquireSuite(kAIToolSuite, kAIToolVersion, (const void**)&sAITool);
-	sSPBasic->AcquireSuite(kAIUnicodeStringSuite, kAIUnicodeStringSuiteVersion, (const void**)&sAIUnicodeString);
-
 	AIAddToolData toolData;
 
 	char toolTitle[kMaxStringLength];
@@ -88,9 +101,6 @@ ASErr PathExploder::CreateTool(SPBasicSuite *sSPBasic) {
 
 	e = sAITool->AddTool(plugin, toolTitle, toolData, toolOptions, &(g->toolHandle));
 
-	sSPBasic->ReleaseSuite(kAIUnicodeStringSuite, kAIUnicodeStringSuiteVersion);
-	sSPBasic->ReleaseSuite(kAIToolSuite, kAIToolVersion);
-
 	return e;
 }
 
@@ -106,22 +116,15 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 		if (sSPBasic->IsEqual(selector, 
 			kSelectorAISelectTool)) {
 
-			sSPBasic->AcquireSuite(kAIMatchingArtSuite, kAIMatchingArtVersion, (const void**)&sAIMatchingArt);
-			sSPBasic->AcquireSuite(kAIArtSuite, kAIArtVersion, (const void**)&sAIArt);
-
 			this->FreeSelectedArt(sSPBasic);
 			sAIMatchingArt->GetSelectedArt( &(g->selectedArt), &(g->selectedArtCount) );
 
-			sSPBasic->ReleaseSuite(kAIArtSuite, kAIArtVersion);
-			sSPBasic->ReleaseSuite(kAIMatchingArtSuite, kAIMatchingArtVersion);
 		}
 		
 		else if (sSPBasic->IsEqual(selector, 
 			kSelectorAIDeselectTool)) {
 
 			if (g->selectedArtIsExploded) {
-
-				sSPBasic->AcquireSuite(kAIArtSuite, kAIArtVersion, (const void**)&sAIArt);
 
 				AIArtHandle art;
 				short artType;
@@ -136,8 +139,6 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 					}
 				}
 
-				sSPBasic->ReleaseSuite(kAIArtSuite, kAIArtVersion);
-
 				g->selectedArtIsExploded = false;
 			}
 
@@ -147,7 +148,6 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 
 		else if (sSPBasic->IsEqual(selector, 
 			kSelectorAIToolMouseDown)) {
-			sSPBasic->AcquireSuite(kAIArtSuite, kAIArtVersion, (const void**)&sAIArt);
 
 			AIArtHandle art;
 			short artType;
@@ -172,7 +172,6 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 
 			g->selectedArtIsExploded = !g->selectedArtIsExploded; // toggle
 
-			sSPBasic->ReleaseSuite(kAIArtSuite, kAIArtVersion);
 		}
 
 		else if (sSPBasic->IsEqual(selector, 
@@ -199,7 +198,6 @@ AIErr PathExploder::WriteCurrentPositionToDictionary(SPBasicSuite * sSPBasic, co
 		goto error;
 	}
 
-	sSPBasic->AcquireSuite(kAIDictionarySuite, kAIDictionaryVersion, (const void**)&sAIDictionary);
 
 	short type;
 	sAIArt->GetArtType(art, &type);
@@ -225,7 +223,6 @@ AIErr PathExploder::WriteCurrentPositionToDictionary(SPBasicSuite * sSPBasic, co
 
 		sAIDictionary->Release(dictRef);
 	}
-	sSPBasic->ReleaseSuite(kAIDictionarySuite, kAIDictionaryVersion);
 
 error:
 	return e;
@@ -240,8 +237,6 @@ AIErr PathExploder::WriteTempTransformToDictionary(SPBasicSuite * sSPBasic, cons
 		goto error;
 	}
 
-	sSPBasic->AcquireSuite(kAIDictionarySuite, kAIDictionaryVersion, (const void**)&sAIDictionary);
-
 	AIDictionaryRef dictRef;
 	sAIArt->GetDictionary(art, &dictRef);
 
@@ -253,8 +248,6 @@ AIErr PathExploder::WriteTempTransformToDictionary(SPBasicSuite * sSPBasic, cons
 	sAIDictionary->SetRealEntry(dictRef, vPos, v);
 
 	sAIDictionary->Release(dictRef);
-
-	sSPBasic->ReleaseSuite(kAIDictionarySuite, kAIDictionaryVersion);
 
 error:
 	return e;
@@ -268,8 +261,6 @@ AIErr PathExploder::ReadAndResetTempTransformFromDictionary(SPBasicSuite * sSPBa
 		e = kCantHappenErr;
 		goto error;
 	}
-
-	sSPBasic->AcquireSuite(kAIDictionarySuite, kAIDictionaryVersion, (const void**)&sAIDictionary);
 
 	AIBoolean isKnown;
 
@@ -302,7 +293,6 @@ AIErr PathExploder::ReadAndResetTempTransformFromDictionary(SPBasicSuite * sSPBa
 
 	sAIDictionary->Release(dictRef);
 
-	sSPBasic->ReleaseSuite(kAIDictionarySuite, kAIDictionaryVersion);
 
 error:
 	return e;
@@ -310,25 +300,14 @@ error:
 
 ASErr PathExploder::Alert(SPBasicSuite *sSPBasic, const char *s) {
 	ASErr e = kNoErr; // not really used
-	
-	sSPBasic->AcquireSuite(kAIUserSuite, kAIUserSuiteVersion, (const void**)&sAIUser);
-	sSPBasic->AcquireSuite(kAIUnicodeStringSuite, kAIUnicodeStringSuiteVersion, (const void**)&sAIUnicodeString);
-	sSPBasic->AcquireSuite(kSPBlocksSuite, kSPBlocksSuiteVersion, (const void**)&sSPBlocks);
-
-	sAIUser->MessageAlert(ai::UnicodeString(s));
-
-	sSPBasic->ReleaseSuite(kSPBlocksSuite, kSPBlocksSuiteVersion);
-	sSPBasic->ReleaseSuite(kAIUnicodeStringSuite, kAIUnicodeStringSuiteVersion);
-	sSPBasic->ReleaseSuite(kAIUserSuite, kAIUserSuiteVersion);
-
+	if(sAIUser) sAIUser->MessageAlert(ai::UnicodeString(s));
+	else e = kCantHappenErr;
 	return e;
 }
 
 ASErr PathExploder::Move(SPBasicSuite *sSPBasic, AIArtHandle art, AIReal transH, AIReal transV) {
 	ASErr e = kNoErr;
 	
-	sSPBasic->AcquireSuite(kAIRealMathSuite, kAIRealMathVersion, (const void **)&sAIRealMath);
-	sSPBasic->AcquireSuite(kAITransformArtSuite, kAITransformArtVersion, (const void **)&sAITransformArt);
 
 	short type;
 	sAIArt->GetArtType(art, &type);
@@ -340,17 +319,13 @@ ASErr PathExploder::Move(SPBasicSuite *sSPBasic, AIArtHandle art, AIReal transH,
 		e = sAITransformArt->TransformArt(art, &transformMarix, lineScale, transformFlags);
 	}
 
-	sSPBasic->ReleaseSuite(kAIRealMathSuite, kAIRealMathVersion);
-	sSPBasic->ReleaseSuite(kAITransformArtSuite, kAITransformArtVersion);
 
 	return e;
 }
 
 void PathExploder::FreeSelectedArt(SPBasicSuite * sSPBasic) {
 	if (g->selectedArt) {
-		sSPBasic->AcquireSuite(kAIMdMemorySuite, kAIMdMemoryVersion, (const void**)&sAIMemory);
 		sAIMemory->MdMemoryDisposeHandle((AIMdMemoryHandle)g->selectedArt);
-		sSPBasic->ReleaseSuite(kAIMdMemorySuite, kAIMdMemoryVersion);
 		g->selectedArt = nullptr;
 	}
 	g->selectedArtCount = 0;
