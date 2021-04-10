@@ -38,7 +38,13 @@ PathExploder::PathExploder(SPPluginRef pluginRef, SPBasicSuite *sSPBasic, SPInte
 	
 	g->selectedArtIsExploded = false;
 
+	this->mathTools = new MathTools(sAIRealMath);
+
 	this->Alert(sSPBasic, "PathExploder start up!");
+}
+
+PathExploder::~PathExploder() {
+	delete this->mathTools;
 }
 
 void PathExploder::AcquireSuites(SPBasicSuite *sSPBasic) {
@@ -152,20 +158,20 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 			AIArtHandle art;
 			short artType;
 
+			AIReal deltaDegree = 360 / g->selectedArtCount;
+			AIRealPoint explodeVector;
+
 			for (int i = 0; i < g->selectedArtCount; i++) {
 				art = (*g->selectedArt)[i];
 				sAIArt->GetArtType(art, &artType);
 				if (artType == kPathArt) {
 					if (!g->selectedArtIsExploded) {
-						AIReal h, v;
-						h = 5.0 * i;
-						v = 2.5 * i;
-						this->WriteTempTransformToDictionary(sSPBasic, art, h, v);
-						if(e == kNoErr) this->Move(sSPBasic, art, h, v);
+						explodeVector = mathTools->DegreeToVector2(deltaDegree * i, kExplosionLength);
+						this->WriteTempTransformToDictionary(sSPBasic, art, explodeVector.h, explodeVector.v);
+						if(e == kNoErr) this->Move(sSPBasic, art, explodeVector.h, explodeVector.v);
 					} else {
-						AIReal h, v;
-						e = this->ReadAndResetTempTransformFromDictionary(sSPBasic, art, &h, &v);
-						if(e == kNoErr) this->Move(sSPBasic, art, -h, -v);
+						e = this->ReadAndResetTempTransformFromDictionary(sSPBasic, art, &(explodeVector.h), &(explodeVector.v));
+						if(e == kNoErr) this->Move(sSPBasic, art, -explodeVector.h, -explodeVector.v);
 					}
 				}
 			}
@@ -175,15 +181,10 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 		}
 
 		else if (sSPBasic->IsEqual(selector, 
-			kSelectorAIToolMouseUp)) {
-			
-		}
+			kSelectorAIToolMouseUp)) { }
 	
 		else if (sSPBasic->IsEqual(selector, 
-			kSelectorAITrackToolCursor)) {
-		
-		}
-
+			kSelectorAITrackToolCursor)) { }
 	}
 	
 	return e;
@@ -197,7 +198,6 @@ AIErr PathExploder::WriteCurrentPositionToDictionary(SPBasicSuite * sSPBasic, co
 		e = kCantHappenErr; 
 		goto error;
 	}
-
 
 	short type;
 	sAIArt->GetArtType(art, &type);
@@ -274,7 +274,6 @@ AIErr PathExploder::ReadAndResetTempTransformFromDictionary(SPBasicSuite * sSPBa
 	AIDictionaryRef dictRef;
 	sAIArt->GetDictionary(art, &dictRef);
 
-
 	AIDictKey hPosKey, vPosKey;
 	hPosKey = sAIDictionary->Key(kTempHPos);
 	vPosKey = sAIDictionary->Key(kTempVPos);
@@ -293,7 +292,6 @@ AIErr PathExploder::ReadAndResetTempTransformFromDictionary(SPBasicSuite * sSPBa
 
 	sAIDictionary->Release(dictRef);
 
-
 error:
 	return e;
 }
@@ -308,7 +306,6 @@ ASErr PathExploder::Alert(SPBasicSuite *sSPBasic, const char *s) {
 ASErr PathExploder::Move(SPBasicSuite *sSPBasic, AIArtHandle art, AIReal transH, AIReal transV) {
 	ASErr e = kNoErr;
 	
-
 	short type;
 	sAIArt->GetArtType(art, &type);
 	if (type == kPathArt) {
@@ -318,7 +315,6 @@ ASErr PathExploder::Move(SPBasicSuite *sSPBasic, AIArtHandle art, AIReal transH,
 		AITransformArtOptions transformFlags = kTransformObjects;
 		e = sAITransformArt->TransformArt(art, &transformMarix, lineScale, transformFlags);
 	}
-
 
 	return e;
 }
@@ -338,3 +334,4 @@ void PathExploder::FreeGlobals(SPInterfaceMessage *message) {
 		message->d.globals = nullptr;
 	}
 }
+

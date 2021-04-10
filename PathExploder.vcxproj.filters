@@ -24,6 +24,9 @@
     <ClCompile Include="Main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="MathTools.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PathExploder.rc">
@@ -35,6 +38,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="PathExploder.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MathTools.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

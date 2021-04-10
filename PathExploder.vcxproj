@@ -191,12 +191,14 @@ ECHO "Done copying $(TargetName)$(TargetExt) to Illustrator plugins folder."</Co
   <ItemGroup>
     <ClCompile Include="..\..\illustratorapi\illustrator\IAIUnicodeString.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="MathTools.cpp" />
     <ClCompile Include="PathExploder.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PathExploder.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="MathTools.h" />
     <ClInclude Include="PathExploder.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
