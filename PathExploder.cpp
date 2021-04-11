@@ -13,8 +13,11 @@ extern "C" {
 	AIRealMathSuite *sAIRealMath = NULL;
 	AIToolSuite *sAITool = NULL;
 	AIAnnotatorSuite *sAIAnnotator = NULL;
-	//	AIAnnotatorDrawerSuite *sAIAnnotatorDrawer = NULL;
-	//	AIHitTestSuite *sAIHitTest = NULL;
+
+	AITimerSuite *sAITimer = NULL;
+
+	// AIAnnotatorDrawerSuite *sAIAnnotatorDrawer = NULL;
+	// AIHitTestSuite *sAIHitTest = NULL;
 }
 
 const int easyDeltaLUTLen = 32;
@@ -40,7 +43,7 @@ PathExploder::PathExploder(SPPluginRef pluginRef, SPBasicSuite *sSPBasic, SPInte
 
 	this->mathTools = new MathTools(sAIRealMath);
 
-	this->Alert(sSPBasic, "PathExploder start up!");
+	this->Alert("PathExploder start up!");
 }
 
 PathExploder::~PathExploder() {
@@ -60,6 +63,7 @@ void PathExploder::AcquireSuites(SPBasicSuite *sSPBasic) {
 	sSPBasic->AcquireSuite(kAIRealMathSuite, kAIRealMathVersion, (const void **)&sAIRealMath);
 	sSPBasic->AcquireSuite(kAIToolSuite, kAIToolVersion, (const void**)&sAITool);
 	sSPBasic->AcquireSuite(kAIAnnotatorSuite, kAIAnnotatorVersion, (const void **)&sAIAnnotator);
+	sSPBasic->AcquireSuite(kAITimerSuite, kAITimerVersion, (const void **)&sAITimer);
 }
 
 void PathExploder::ReleaseSuites(SPBasicSuite *sSPBasic) {
@@ -75,6 +79,7 @@ void PathExploder::ReleaseSuites(SPBasicSuite *sSPBasic) {
 	sSPBasic->ReleaseSuite(kAIRealMathSuite, kAIRealMathVersion);
 	sSPBasic->ReleaseSuite(kAIToolSuite, kAIToolVersion);
 	sSPBasic->ReleaseSuite(kAIAnnotatorSuite, kAIAnnotatorVersion);
+	sSPBasic->ReleaseSuite(kAITimerSuite, kAITimerSuiteVersion);
 }
 
 void PathExploder::AddAnnotator(SPBasicSuite *sSPBasic) {
@@ -140,8 +145,8 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 					sAIArt->GetArtType(art, &artType);
 					if (artType == kPathArt) {
 						AIReal h, v;
-						e = this->ReadAndResetTempTransformFromDictionary(sSPBasic, art, &h, &v);
-						if (e == kNoErr) this->Move(sSPBasic, art, -h, -v);
+						e = this->ReadAndResetTempTransformFromDictionary(art, &h, &v);
+						if (e == kNoErr) this->Move(art, -h, -v);
 					}
 				}
 
@@ -167,11 +172,11 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 				if (artType == kPathArt) {
 					if (!g->selectedArtIsExploded) {
 						explodeVector = mathTools->DegreeToVector2(deltaDegree * i, kExplosionLength);
-						this->WriteTempTransformToDictionary(sSPBasic, art, explodeVector.h, explodeVector.v);
-						if(e == kNoErr) this->Move(sSPBasic, art, explodeVector.h, explodeVector.v);
+						this->WriteTempTransformToDictionary(art, explodeVector.h, explodeVector.v);
+						if(e == kNoErr) this->Move(art, explodeVector.h, explodeVector.v);
 					} else {
-						e = this->ReadAndResetTempTransformFromDictionary(sSPBasic, art, &(explodeVector.h), &(explodeVector.v));
-						if(e == kNoErr) this->Move(sSPBasic, art, -explodeVector.h, -explodeVector.v);
+						e = this->ReadAndResetTempTransformFromDictionary(art, &(explodeVector.h), &(explodeVector.v));
+						if(e == kNoErr) this->Move(art, -explodeVector.h, -explodeVector.v);
 					}
 				}
 			}
@@ -190,7 +195,7 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 	return e;
 }
 
-AIErr PathExploder::WriteCurrentPositionToDictionary(SPBasicSuite * sSPBasic, const AIArtHandle &art) {
+AIErr PathExploder::WriteCurrentPositionToDictionary(SPBasicSuite *sSPBasic, const AIArtHandle &art) {
 	
 	AIErr e = kNoErr;
 
@@ -228,7 +233,37 @@ error:
 	return e;
 }
 
-AIErr PathExploder::WriteTempTransformToDictionary(SPBasicSuite * sSPBasic, const AIArtHandle &art, AIReal h, AIReal v) {
+AIErr PathExploder::GetCurrentPosition(const AIArtHandle &art, AIRealPoint *currentPos) {
+	AIErr e = kNoErr;
+
+	short type;
+	sAIArt->GetArtType(art, &type);
+
+	if (type == kPathArt) {
+		AIRealRect artBounds;
+		sAIArt->GetArtBounds(art, &artBounds);
+
+		currentPos->h = artBounds.left + (artBounds.right - artBounds.left) / 2;
+		currentPos->v = artBounds.bottom + (artBounds.top - artBounds.bottom) / 2;
+	} else {
+		e = kCantHappenErr;
+	}
+
+	return e;
+}
+
+AIErr PathExploder::MoveToAbsPosition(const AIArtHandle &art, AIRealPoint *moveToPos) {
+	AIErr e = kNoErr;
+	AIRealPoint currentPos; 
+	e = this->GetCurrentPosition(art, &currentPos);
+	AIRealPoint transform;
+	transform.h = moveToPos->h - currentPos.h;
+	transform.v = moveToPos->v - currentPos.v;
+	e = this->Move(art, transform.h, transform.v);
+	return e;
+}
+
+AIErr PathExploder::WriteTempTransformToDictionary(const AIArtHandle &art, AIReal h, AIReal v) {
 
 	AIErr e = kNoErr;
 
@@ -241,8 +276,8 @@ AIErr PathExploder::WriteTempTransformToDictionary(SPBasicSuite * sSPBasic, cons
 	sAIArt->GetDictionary(art, &dictRef);
 
 	AIDictKey hPos, vPos;
-	hPos = sAIDictionary->Key(kTempHPos);
-	vPos = sAIDictionary->Key(kTempVPos);
+	hPos = sAIDictionary->Key(kTempHTransform);
+	vPos = sAIDictionary->Key(kTempVTransform);
 
 	sAIDictionary->SetRealEntry(dictRef, hPos, h);
 	sAIDictionary->SetRealEntry(dictRef, vPos, v);
@@ -254,7 +289,7 @@ error:
 }
 
 
-AIErr PathExploder::ReadAndResetTempTransformFromDictionary(SPBasicSuite * sSPBasic, const AIArtHandle &art, AIReal *readHPos, AIReal *readVPos) {
+AIErr PathExploder::ReadAndResetTempTransformFromDictionary(const AIArtHandle &art, AIReal *readHPos, AIReal *readVPos) {
 	AIErr e = kNoErr;
 
 	if (!sAIArt) {
@@ -275,8 +310,8 @@ AIErr PathExploder::ReadAndResetTempTransformFromDictionary(SPBasicSuite * sSPBa
 	sAIArt->GetDictionary(art, &dictRef);
 
 	AIDictKey hPosKey, vPosKey;
-	hPosKey = sAIDictionary->Key(kTempHPos);
-	vPosKey = sAIDictionary->Key(kTempVPos);
+	hPosKey = sAIDictionary->Key(kTempHTransform);
+	vPosKey = sAIDictionary->Key(kTempVTransform);
 
 	// does key entries exist?
 	isKnown = sAIDictionary->IsKnown(dictRef, hPosKey);
@@ -296,14 +331,14 @@ error:
 	return e;
 }
 
-ASErr PathExploder::Alert(SPBasicSuite *sSPBasic, const char *s) {
+ASErr PathExploder::Alert(const char *s) {
 	ASErr e = kNoErr; // not really used
 	if(sAIUser) sAIUser->MessageAlert(ai::UnicodeString(s));
 	else e = kCantHappenErr;
 	return e;
 }
 
-ASErr PathExploder::Move(SPBasicSuite *sSPBasic, AIArtHandle art, AIReal transH, AIReal transV) {
+ASErr PathExploder::Move(AIArtHandle art, AIReal transH, AIReal transV) {
 	ASErr e = kNoErr;
 	
 	short type;

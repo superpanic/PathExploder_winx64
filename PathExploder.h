@@ -5,11 +5,15 @@
 #include "AIAnnotatorDrawer.h"
 #include "MathTools.h"
 
-#define kIconID	    23230
-#define kToolTitle  "Path Exploder"
-#define kToolTip    "Path Explode Tool"
-#define kTempHPos   "-HPos"
-#define kTempVPos   "-VPos"
+#define kIconID			23230
+#define kToolTitle		"Path Exploder"
+#define kToolTip		"Path Explode Tool"
+#define kTempHPos		"-HPos"
+#define kTempVPos		"-VPos"
+#define kTempHTransform		"-HTransform"
+#define kTempVTransform		"-VTransform"
+
+
 #define kExplosionLength 100.0
 
 class PathExploder {
@@ -41,11 +45,13 @@ class PathExploder {
 		void AddSelectionNotifier(SPBasicSuite * sSPBasic);
 		void AddAnnotator(SPBasicSuite * sSPBasic);
 		AIErr WriteCurrentPositionToDictionary(SPBasicSuite * sSPBasic, const AIArtHandle &art);
-		AIErr WriteTempTransformToDictionary(SPBasicSuite * sSPBasic, const AIArtHandle &art, AIReal transH, AIReal transV);
-		AIErr ReadAndResetTempTransformFromDictionary(SPBasicSuite * sSPBasic, const AIArtHandle &art, AIReal *originalHPos, AIReal *originalVPos);
+		AIErr WriteTempTransformToDictionary(const AIArtHandle &art, AIReal transH, AIReal transV);
+		AIErr ReadAndResetTempTransformFromDictionary(const AIArtHandle &art, AIReal *originalHPos, AIReal *originalVPos);
+		AIErr GetCurrentPosition(const AIArtHandle &art, AIRealPoint *currentPos);
+		AIErr MoveToAbsPosition(const AIArtHandle &art, AIRealPoint *moveToPos);
 		ASErr CreateTool(SPBasicSuite * sSPBasic);
-		ASErr Move(SPBasicSuite *sSPBasic, AIArtHandle art, AIReal transH, AIReal transV);
-		ASErr Alert(SPBasicSuite *sSPBasic, const char *s);
+		ASErr Move(AIArtHandle art, AIReal transH, AIReal transV);
+		ASErr Alert(const char *s);
 
 };
 
