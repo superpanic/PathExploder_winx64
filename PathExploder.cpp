@@ -33,11 +33,11 @@ PathExploder::PathExploder(SPPluginRef pluginRef, SPBasicSuite *sSPBasic, SPInte
 	e = sSPBasic->AllocateBlock(sizeof(Globals), (void **)&(this->g));
 	if (!e) message->d.globals = this->g;
 
-
 	this->AcquireSuites(sSPBasic);
-	this->CreateTool(sSPBasic);
-	this->AddSelectionNotifier(sSPBasic);
-	this->AddAnnotator(sSPBasic);
+	this->CreateTool();
+	this->AddSelectionNotifier();
+	this->AddAnnotator();
+	this->SetupTimer();
 	
 	g->selectedArtIsExploded = false;
 
@@ -82,16 +82,21 @@ void PathExploder::ReleaseSuites(SPBasicSuite *sSPBasic) {
 	sSPBasic->ReleaseSuite(kAITimerSuite, kAITimerSuiteVersion);
 }
 
-void PathExploder::AddAnnotator(SPBasicSuite *sSPBasic) {
+void PathExploder::AddAnnotator() {
 	sAIAnnotator->AddAnnotator(this->plugin, "PointView Annotator", &(g->annotatorHandle));
 }
 
-void PathExploder::AddSelectionNotifier(SPBasicSuite * sSPBasic) {
+void PathExploder::AddSelectionNotifier() {
 	/* add selection notifier */
 	sAINotifier->AddNotifier(this->plugin, "Selection notifier", kAIArtSelectionChangedNotifier, &(g->selectionNotifierHandle));
 }
 
-ASErr PathExploder::CreateTool(SPBasicSuite *sSPBasic) {
+void PathExploder::SetupTimer() {
+	sAITimer->AddTimer(this->plugin, "Ease Timer", kAnimationSpeed, &(g->timerHandle));
+	sAITimer->SetTimerActive(g->timerHandle, false);
+}
+
+ASErr PathExploder::CreateTool() {
 	ASErr e = kNoErr;
 	
 	AIAddToolData toolData;
@@ -121,68 +126,113 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 	SPMessageData *msgData = (SPMessageData *)message;
 	SPBasicSuite *sSPBasic = msgData->basic;
 
+	if (sSPBasic->IsEqual(caller, kCallerAITimer)) {
+
+		if (sSPBasic->IsEqual(selector, kSelectorAIGoTimer)) {
+			if (g->selectedArtIsExploded && g->selectedPathCount > 0) {
+				
+				if (g->animationStep < easyInLUTLen) {
+					AIReal frac = easyInLUT[g->animationStep];
+
+					AIArtHandle art;
+					short artType;
+
+					AIRealPoint origin;
+					AIRealPoint transform;
+
+					for (int i = 0; i < g->selectedArtCount; i++) {
+						art = (*g->selectedArt)[i];
+						sAIArt->GetArtType(art, &artType);
+						if (artType == kPathArt) {
+							this->ReadTempOriginFromDictionary(art, &origin);
+							this->ReadTempTransformFromDict(art, &transform);
+							this->MoveToFraction(art, &origin, &transform, frac);
+						}
+					}
+
+					g->animationStep++;
+				} else {
+					this->DeactivateTimer();
+					g->animationStep = 0;
+				}
+
+			}
+
+		}
+
+	}
+
 	if (sSPBasic->IsEqual(caller, kCallerAITool)) {
 		
-		
-		if (sSPBasic->IsEqual(selector, 
-			kSelectorAISelectTool)) {
+		if (sSPBasic->IsEqual(selector, kSelectorAISelectTool)) {
+			this->FreeSelectedArt();
 
-			this->FreeSelectedArt(sSPBasic);
 			sAIMatchingArt->GetSelectedArt( &(g->selectedArt), &(g->selectedArtCount) );
+			g->selectedPathCount = 0;
+
+			AIArtHandle art;
+			short artType;
+
+			for (int i = 0; i < g->selectedArtCount; i++) {
+				art = (*g->selectedArt)[i];
+				sAIArt->GetArtType(art, &artType);
+				if(artType == kPathArt) g->selectedPathCount++;
+			}
 
 		}
 		
-		else if (sSPBasic->IsEqual(selector, 
-			kSelectorAIDeselectTool)) {
+		else if (sSPBasic->IsEqual(selector, kSelectorAIDeselectTool)) {
+			if (g->selectedPathCount > 0) {
+				if (g->selectedArtIsExploded) {
 
-			if (g->selectedArtIsExploded) {
+					AIArtHandle art;
+					short artType;
 
+					for (int i = 0; i < g->selectedArtCount; i++) {
+						art = (*g->selectedArt)[i];
+						sAIArt->GetArtType(art, &artType);
+						if (artType == kPathArt) {
+							AIRealPoint origin;
+							e = this->ReadTempOriginFromDictionary(art, &origin);
+							if (e == kNoErr) this->MoveTo(art, &origin);
+							sAITimer->SetTimerActive(g->timerHandle, false);
+						}
+					}
+
+					g->selectedArtIsExploded = false;
+				}
+			}
+			this->FreeSelectedArt(); // art objects might still be in selection list, even though it's not path objects
+		}
+
+		else if (sSPBasic->IsEqual(selector, kSelectorAIToolMouseDown)) {
+			if (g->selectedPathCount > 0) {
 				AIArtHandle art;
 				short artType;
+
+				AIReal deltaDegree = 360 / g->selectedPathCount; // division by 0 check above!
+				AIRealPoint transform;
 
 				for (int i = 0; i < g->selectedArtCount; i++) {
 					art = (*g->selectedArt)[i];
 					sAIArt->GetArtType(art, &artType);
 					if (artType == kPathArt) {
-						AIReal h, v;
-						e = this->ReadAndResetTempTransformFromDictionary(art, &h, &v);
-						if (e == kNoErr) this->Move(art, -h, -v);
+						if (!g->selectedArtIsExploded) {
+							transform = mathTools->DegreeToVector2(deltaDegree * i, kExplosionLength);
+							this->WriteTempOriginAndTransformToDict(art, &transform);
+							g->animationStep = 0;
+							sAITimer->SetTimerActive(g->timerHandle, true);
+						} else {
+							AIRealPoint origin;
+							e = this->ReadTempOriginFromDictionary(art, &origin);
+							if (e == kNoErr) this->MoveTo(art, &origin);
+							sAITimer->SetTimerActive(g->timerHandle, false);
+						}
 					}
 				}
 
-				g->selectedArtIsExploded = false;
+				g->selectedArtIsExploded = !g->selectedArtIsExploded; // toggle
 			}
-
-			this->FreeSelectedArt(sSPBasic);
-
-		}
-
-		else if (sSPBasic->IsEqual(selector, 
-			kSelectorAIToolMouseDown)) {
-
-			AIArtHandle art;
-			short artType;
-
-			AIReal deltaDegree = 360 / g->selectedArtCount;
-			AIRealPoint explodeVector;
-
-			for (int i = 0; i < g->selectedArtCount; i++) {
-				art = (*g->selectedArt)[i];
-				sAIArt->GetArtType(art, &artType);
-				if (artType == kPathArt) {
-					if (!g->selectedArtIsExploded) {
-						explodeVector = mathTools->DegreeToVector2(deltaDegree * i, kExplosionLength);
-						this->WriteTempTransformToDictionary(art, explodeVector.h, explodeVector.v);
-						if(e == kNoErr) this->Move(art, explodeVector.h, explodeVector.v);
-					} else {
-						e = this->ReadAndResetTempTransformFromDictionary(art, &(explodeVector.h), &(explodeVector.v));
-						if(e == kNoErr) this->Move(art, -explodeVector.h, -explodeVector.v);
-					}
-				}
-			}
-
-			g->selectedArtIsExploded = !g->selectedArtIsExploded; // toggle
-
 		}
 
 		else if (sSPBasic->IsEqual(selector, 
@@ -195,41 +245,10 @@ ASErr PathExploder::Message(char *caller, char *selector, void *message) {
 	return e;
 }
 
-AIErr PathExploder::WriteCurrentPositionToDictionary(SPBasicSuite *sSPBasic, const AIArtHandle &art) {
-	
-	AIErr e = kNoErr;
-
-	if (!sAIArt) { 
-		e = kCantHappenErr; 
-		goto error;
-	}
-
-	short type;
-	sAIArt->GetArtType(art, &type);
-
-	if (type == kPathArt) {
-
-		AIRealRect artBounds;
-		sAIArt->GetArtBounds(art, &artBounds);
-
-		AIRealPoint artCenter;
-		artCenter.h = artBounds.left + (artBounds.right - artBounds.left) / 2;
-		artCenter.v = artBounds.bottom + (artBounds.top - artBounds.bottom) / 2;
-
-		AIDictionaryRef dictRef;
-		sAIArt->GetDictionary(art, &dictRef);
-
-		AIDictKey hPos, vPos;
-		hPos = sAIDictionary->Key(kTempHPos);
-		vPos = sAIDictionary->Key(kTempVPos);
-
-		sAIDictionary->SetRealEntry(dictRef, hPos, artCenter.h);
-		sAIDictionary->SetRealEntry(dictRef, vPos, artCenter.v);
-
-		sAIDictionary->Release(dictRef);
-	}
-
-error:
+ASErr PathExploder::Alert(const char *s) {
+	ASErr e = kNoErr; // not really used
+	if (sAIUser) sAIUser->MessageAlert(ai::UnicodeString(s));
+	else e = kCantHappenErr;
 	return e;
 }
 
@@ -252,44 +271,47 @@ AIErr PathExploder::GetCurrentPosition(const AIArtHandle &art, AIRealPoint *curr
 	return e;
 }
 
-AIErr PathExploder::MoveToAbsPosition(const AIArtHandle &art, AIRealPoint *moveToPos) {
+ASErr PathExploder::Move(AIArtHandle art, AIReal transH, AIReal transV) {
+	ASErr e = kNoErr;
+	
+	short type;
+	sAIArt->GetArtType(art, &type);
+	if (type == kPathArt) {
+		AIRealMatrix transformMarix;
+		sAIRealMath->AIRealMatrixSetTranslate(&transformMarix, transH, transV);
+		AIReal lineScale = 1.0;
+		AITransformArtOptions transformFlags = kTransformObjects;
+		e = sAITransformArt->TransformArt(art, &transformMarix, lineScale, transformFlags);
+	}
+
+	return e;
+}
+
+AIErr PathExploder::MoveToFraction(const AIArtHandle &art, AIRealPoint *origin, AIRealPoint *transform, AIReal fraction) {
 	AIErr e = kNoErr;
-	AIRealPoint currentPos; 
+
+	AIRealPoint absPos;
+	absPos.h = origin->h + (transform->h * fraction);
+	absPos.v = origin->v + (transform->v * fraction);
+
+	this->MoveTo(art, &absPos);
+
+	return e;
+}
+
+AIErr PathExploder::MoveTo(const AIArtHandle &art, AIRealPoint *absPos) {
+	AIErr e = kNoErr;
+	AIRealPoint currentPos;
 	e = this->GetCurrentPosition(art, &currentPos);
 	AIRealPoint transform;
-	transform.h = moveToPos->h - currentPos.h;
-	transform.v = moveToPos->v - currentPos.v;
+	transform.h = absPos->h - currentPos.h;
+	transform.v = absPos->v - currentPos.v;
 	e = this->Move(art, transform.h, transform.v);
 	return e;
 }
 
-AIErr PathExploder::WriteTempTransformToDictionary(const AIArtHandle &art, AIReal h, AIReal v) {
 
-	AIErr e = kNoErr;
-
-	if (!sAIArt) {
-		e = kCantHappenErr;
-		goto error;
-	}
-
-	AIDictionaryRef dictRef;
-	sAIArt->GetDictionary(art, &dictRef);
-
-	AIDictKey hPos, vPos;
-	hPos = sAIDictionary->Key(kTempHTransform);
-	vPos = sAIDictionary->Key(kTempVTransform);
-
-	sAIDictionary->SetRealEntry(dictRef, hPos, h);
-	sAIDictionary->SetRealEntry(dictRef, vPos, v);
-
-	sAIDictionary->Release(dictRef);
-
-error:
-	return e;
-}
-
-
-AIErr PathExploder::ReadAndResetTempTransformFromDictionary(const AIArtHandle &art, AIReal *readHPos, AIReal *readVPos) {
+AIErr PathExploder::ReadTempTransformFromDict(const AIArtHandle &art, AIRealPoint *transform) {
 	AIErr e = kNoErr;
 
 	if (!sAIArt) {
@@ -318,12 +340,14 @@ AIErr PathExploder::ReadAndResetTempTransformFromDictionary(const AIArtHandle &a
 	if (!isKnown) e = kNoSuchKey;
 	isKnown = sAIDictionary->IsKnown(dictRef, hPosKey);
 	if (!isKnown) e = kNoSuchKey;
-	if (e != kNoErr) goto error;
 
-
-	// check if position entry exists in dictionary
-	sAIDictionary->GetRealEntry(dictRef, hPosKey, readHPos);
-	sAIDictionary->GetRealEntry(dictRef, vPosKey, readVPos);
+	if (e == kNoErr) {
+		AIReal h, v;
+		sAIDictionary->GetRealEntry(dictRef, hPosKey, &h);
+		sAIDictionary->GetRealEntry(dictRef, vPosKey, &v);
+		transform->h = h;
+		transform->v = v;
+	}
 
 	sAIDictionary->Release(dictRef);
 
@@ -331,30 +355,126 @@ error:
 	return e;
 }
 
-ASErr PathExploder::Alert(const char *s) {
-	ASErr e = kNoErr; // not really used
-	if(sAIUser) sAIUser->MessageAlert(ai::UnicodeString(s));
-	else e = kCantHappenErr;
-	return e;
-}
+AIErr PathExploder::ReadTempOriginFromDictionary(const AIArtHandle &art, AIRealPoint *origin) {
+	AIErr e = kNoErr;
 
-ASErr PathExploder::Move(AIArtHandle art, AIReal transH, AIReal transV) {
-	ASErr e = kNoErr;
-	
-	short type;
-	sAIArt->GetArtType(art, &type);
-	if (type == kPathArt) {
-		AIRealMatrix transformMarix;
-		sAIRealMath->AIRealMatrixSetTranslate(&transformMarix, transH, transV);
-		AIReal lineScale = 1.0;
-		AITransformArtOptions transformFlags = kTransformObjects;
-		e = sAITransformArt->TransformArt(art, &transformMarix, lineScale, transformFlags);
+	if (!sAIArt) {
+		e = kCantHappenErr;
+		goto error;
 	}
 
+	AIBoolean isKnown;
+
+	// does dictionary exist?
+	isKnown = sAIArt->HasDictionary(art);
+	if (!isKnown) {
+		e = kCantHappenErr;
+		goto error;
+	}
+
+	AIDictionaryRef dictRef;
+	sAIArt->GetDictionary(art, &dictRef);
+
+	AIDictKey hKey, vKey;
+	hKey = sAIDictionary->Key(kTempOriginH);
+	vKey = sAIDictionary->Key(kTempOriginV);
+
+	// does key entries exist?
+	isKnown = sAIDictionary->IsKnown(dictRef, hKey);
+	if (!isKnown) e = kNoSuchKey;
+	isKnown = sAIDictionary->IsKnown(dictRef, vKey);
+	if (!isKnown) e = kNoSuchKey;
+
+	if (e == kNoErr) {
+		AIReal h, v;
+		sAIDictionary->GetRealEntry(dictRef, hKey, &h);
+		sAIDictionary->GetRealEntry(dictRef, vKey, &v);
+		origin->h = h;
+		origin->v = v;
+	}
+
+	sAIDictionary->Release(dictRef);
+
+error:
+	return e;
+
+
+}
+
+AIErr PathExploder::WriteTempOriginAndTransformToDict(const AIArtHandle &art, AIRealPoint *transform) {
+	AIErr e = kNoErr;
+
+	short type;
+	sAIArt->GetArtType(art, &type);
+
+	if (type == kPathArt) {
+
+		AIRealRect artBounds;
+		e = sAIArt->GetArtBounds(art, &artBounds);
+		if (e != kNoErr) goto error;
+
+		AIRealPoint artCenter;
+		artCenter.h = artBounds.left + (artBounds.right - artBounds.left) / 2;
+		artCenter.v = artBounds.bottom + (artBounds.top - artBounds.bottom) / 2;
+
+		AIDictionaryRef dictionaryRef = nullptr;
+		e = sAIArt->GetDictionary(art, &dictionaryRef);
+		if (e != kNoErr && dictionaryRef == nullptr) goto error;
+
+		AIDictKey hOrigin, vOrigin;
+		hOrigin = sAIDictionary->Key(kTempOriginH);
+		vOrigin = sAIDictionary->Key(kTempOriginV);
+
+		sAIDictionary->SetRealEntry(dictionaryRef, hOrigin, artCenter.h);
+		sAIDictionary->SetRealEntry(dictionaryRef, vOrigin, artCenter.v);
+
+		AIDictKey hTransform, vTransform;
+		hTransform = sAIDictionary->Key(kTempHTransform);
+		vTransform = sAIDictionary->Key(kTempVTransform);
+
+		sAIDictionary->SetRealEntry(dictionaryRef, hTransform, transform->h);
+		sAIDictionary->SetRealEntry(dictionaryRef, vTransform, transform->v);
+
+		sAIDictionary->Release(dictionaryRef);
+
+	}
+
+error:
 	return e;
 }
 
-void PathExploder::FreeSelectedArt(SPBasicSuite * sSPBasic) {
+AIErr PathExploder::WriteTempTransformToDict(const AIArtHandle &art, AIReal h, AIReal v) {
+
+	AIErr e = kNoErr;
+
+	if (!sAIArt) {
+		e = kCantHappenErr;
+		goto error;
+	}
+
+	AIDictionaryRef dictRef;
+	sAIArt->GetDictionary(art, &dictRef);
+
+	AIDictKey hPos, vPos;
+	hPos = sAIDictionary->Key(kTempHTransform);
+	vPos = sAIDictionary->Key(kTempVTransform);
+
+	sAIDictionary->SetRealEntry(dictRef, hPos, h);
+	sAIDictionary->SetRealEntry(dictRef, vPos, v);
+
+	sAIDictionary->Release(dictRef);
+
+error:
+	return e;
+}
+
+void PathExploder::DeactivateTimer() {
+	if (sAITimer) {
+		if (g->timerHandle) sAITimer->SetTimerActive(g->timerHandle, false);
+	}
+}
+
+void PathExploder::FreeSelectedArt() {
 	if (g->selectedArt) {
 		sAIMemory->MdMemoryDisposeHandle((AIMdMemoryHandle)g->selectedArt);
 		g->selectedArt = nullptr;

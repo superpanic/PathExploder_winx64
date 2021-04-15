@@ -12,9 +12,12 @@
 #define kTempVPos		"-VPos"
 #define kTempHTransform		"-HTransform"
 #define kTempVTransform		"-VTransform"
+#define kTempOriginH		"-HOrigin"
+#define kTempOriginV		"-VOrigin"
 
 
-#define kExplosionLength 100.0
+constexpr ai::int32 kAnimationSpeed = 1;
+constexpr AIReal kExplosionLength = 100.0;
 
 class PathExploder {
 	
@@ -23,18 +26,24 @@ class PathExploder {
 		AIToolHandle toolHandle;
 		AIAnnotatorHandle annotatorHandle;
 		AIArtHandle **selectedArt;
-		ai::int32 selectedArtCount;
+		ai::int32 selectedArtCount; // number of total selected art
+		ai::int32 selectedPathCount; // number of selected art that is of type path
 		AIBoolean selectedArtIsExploded;
+		short animationStep;
+		AITimerHandle timerHandle;
 	} Globals;
 
 	public:
 		PathExploder(SPPluginRef pluginRef, SPBasicSuite *sSPBasic, SPInterfaceMessage *message);
 		~PathExploder();
+
 		void AcquireSuites(SPBasicSuite *sSPBasic);
 		void ReleaseSuites(SPBasicSuite *sSPBasic);
 
 		ASErr Message(char *caller, char *selector, void *message);
-		void FreeSelectedArt(SPBasicSuite * sSPBasic);
+
+		void FreeSelectedArt();
+		void DeactivateTimer();
 		void FreeGlobals(SPInterfaceMessage *message);
 
 	private:
@@ -42,16 +51,25 @@ class PathExploder {
 		Globals *g = nullptr;
 		MathTools *mathTools;
 
-		void AddSelectionNotifier(SPBasicSuite * sSPBasic);
-		void AddAnnotator(SPBasicSuite * sSPBasic);
-		AIErr WriteCurrentPositionToDictionary(SPBasicSuite * sSPBasic, const AIArtHandle &art);
-		AIErr WriteTempTransformToDictionary(const AIArtHandle &art, AIReal transH, AIReal transV);
-		AIErr ReadAndResetTempTransformFromDictionary(const AIArtHandle &art, AIReal *originalHPos, AIReal *originalVPos);
-		AIErr GetCurrentPosition(const AIArtHandle &art, AIRealPoint *currentPos);
-		AIErr MoveToAbsPosition(const AIArtHandle &art, AIRealPoint *moveToPos);
-		ASErr CreateTool(SPBasicSuite * sSPBasic);
-		ASErr Move(AIArtHandle art, AIReal transH, AIReal transV);
+		void AddSelectionNotifier();
+		void AddAnnotator();
+		void SetupTimer();
+
+		ASErr CreateTool();
+
 		ASErr Alert(const char *s);
+
+		AIErr GetCurrentPosition(const AIArtHandle &art, AIRealPoint *currentPos);
+
+		ASErr Move(AIArtHandle art, AIReal transH, AIReal transV);
+		AIErr MoveTo(const AIArtHandle &art, AIRealPoint *absPos);
+		AIErr MoveToFraction(const AIArtHandle &art, AIRealPoint *origin, AIRealPoint *destination, AIReal fraction);
+
+		AIErr ReadTempOriginFromDictionary(const AIArtHandle &art, AIRealPoint *origin);
+		AIErr ReadTempTransformFromDict(const AIArtHandle &art, AIRealPoint *transform);
+
+		AIErr WriteTempOriginAndTransformToDict(const AIArtHandle &art, AIRealPoint *transform);
+		AIErr WriteTempTransformToDict(const AIArtHandle &art, AIReal transH, AIReal transV);
 
 };
 
