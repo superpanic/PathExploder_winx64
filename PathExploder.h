@@ -4,20 +4,23 @@
 #include "AIAnnotator.h"
 #include "AIAnnotatorDrawer.h"
 #include "MathTools.h"
+#include "AIUnicodeString.h"
+
 
 #define kIconID			23230
 #define kToolTitle		"Path Exploder"
 #define kToolTip		"Path Explode Tool"
 #define kTempHPos		"-HPos"
 #define kTempVPos		"-VPos"
-#define kTempHTransform		"-HTransform"
-#define kTempVTransform		"-VTransform"
+#define kTempHVector		"-HTransform"
+#define kTempVVector		"-VTransform"
 #define kTempOriginH		"-HOrigin"
 #define kTempOriginV		"-VOrigin"
 
 
 constexpr ai::int32 kAnimationSpeed = 1;
 constexpr AIReal kExplosionLength = 100.0;
+constexpr AIReal kAnnotationLineWidth = 1.0;
 
 class PathExploder {
 	
@@ -28,10 +31,12 @@ class PathExploder {
 		AIArtHandle **selectedArt;
 		ai::int32 selectedArtCount; // number of total selected art
 		ai::int32 selectedPathCount; // number of selected art that is of type path
-		AIBoolean selectedArtIsExploded;
-		short animationStep;
+		bool selectedArtIsExploded;
 		AITimerHandle timerHandle;
 	} Globals;
+
+	AIRealPoint mouseDownPos;
+	DWORD lastClick;
 
 	public:
 		PathExploder(SPPluginRef pluginRef, SPBasicSuite *sSPBasic, SPInterfaceMessage *message);
@@ -53,7 +58,6 @@ class PathExploder {
 
 		void AddSelectionNotifier();
 		void AddAnnotator();
-		void SetupTimer();
 
 		ASErr CreateTool();
 
@@ -61,17 +65,24 @@ class PathExploder {
 
 		AIErr GetCurrentPosition(const AIArtHandle &art, AIRealPoint *currentPos);
 
-		ASErr Move(AIArtHandle art, AIReal transH, AIReal transV);
+		ASErr DrawIndexLabel(const AIArtHandle &art, AIAnnotatorDrawer *drawer, const AIPoint *point, const int index);
+
+		ASErr Move(const AIArtHandle art, AIReal transH, AIReal transV);
 		AIErr MoveTo(const AIArtHandle &art, AIRealPoint *absPos);
-		AIErr MoveToFraction(const AIArtHandle &art, AIRealPoint *origin, AIRealPoint *destination, AIReal fraction);
+		AIErr MoveToRelativeDistance(const AIArtHandle &art, AIRealPoint *origin, AIRealPoint *destination, AIReal fraction);
 
 		AIErr ReadTempOriginFromDictionary(const AIArtHandle &art, AIRealPoint *origin);
-		AIErr ReadTempTransformFromDict(const AIArtHandle &art, AIRealPoint *transform);
+		AIErr ReadTempVectorFromDictionary(const AIArtHandle &art, AIRealPoint *transform);
 
-		AIErr WriteTempOriginAndTransformToDict(const AIArtHandle &art, AIRealPoint *transform);
+		AIErr WriteTempOriginToDict(const AIArtHandle &art);
+		AIErr WriteTempOriginAndVectorToDict(const AIArtHandle &art, AIRealPoint *vector);
 		AIErr WriteTempTransformToDict(const AIArtHandle &art, AIReal transH, AIReal transV);
 
+		bool IsDoubleClickEvent();
+
 };
+
+const void RealPointToPoint(AIRealPoint *rpnt, AIPoint *pnt);
 
 
 /*
