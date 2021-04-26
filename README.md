@@ -1,4 +1,4 @@
-﻿# PathExploder_winx64
+﻿# Plug-in for Adobe Illustrator
 This is a plug-in for the Windows version of Adobe Illustrator, written in C++ using the Adobe Illustrator SDK 2021. 
 
 The macOS version is found here.
@@ -13,5 +13,5 @@ Sometimes you end up with a lot of paths on top of each other and want to delete
 
 [images]
 
-Build and run
+# Build and run
 
