@@ -1,7 +1,7 @@
 ﻿# Plug-in for Adobe Illustrator
 This is a plug-in for the Windows version of Adobe Illustrator, written in C++ using the Adobe Illustrator SDK 2021. 
 
-The macOS version is found here.
+## TODO: The macOS version is found here. 
 
 When the plug-in is installed in Adobe Illustrator the Path Exploder tool is added to the tool palette. 
 
